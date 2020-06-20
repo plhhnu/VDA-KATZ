@@ -1,9 +1,9 @@
+# VDA-KATZ model when k = 3
 import pandas as pd
 import numpy as np
 import math
 import random
-from sklearn.metrics import roc_auc_score, auc,roc_curve
-from matplotlib import pyplot as plt
+from sklearn.metrics import roc_auc_score, auc, roc_curve
 def getSimilarMatrix(IP, γ_):
     dimensional = IP.shape[0]
     sd = np.zeros(dimensional)
@@ -15,7 +15,6 @@ def getSimilarMatrix(IP, γ_):
         for j in range(dimensional):
             K[i][j] = math.exp(-gamad * (np.linalg.norm(IP[i] - IP[j])) ** 2)
     return K
-
 def Kfoldcrossclassify(sample, K, fun="cv3"):
     r = []
     if fun != "cv3":
@@ -28,7 +27,6 @@ def Kfoldcrossclassify(sample, K, fun="cv3"):
         # for i in range(K):
         r = [[j for j in sample if j[t] in mt[i]] for i in range(K)]
         return r
-
     l = sample.shape[0]
     t = sample.copy()
     n = math.floor(l / K)
@@ -44,39 +42,26 @@ def Kfoldcrossclassify(sample, K, fun="cv3"):
         t = [t[i] for i in range(e) if (i not in a)]
     r.append(t)
     return r
-
-
 A = pd.read_excel(r"C:\Users\wjj\VDA-KATZ\data\association.xls",header=None)
-# print(A)
-# 将表格转换成矩阵
 A = A.to_numpy()
-# 把矩阵A的行列数值赋给变量
 Nd, Nv = A.shape
-# 取=1的位置
 a = [(i, j) for i in range(Nd) for j in range(Nv) if A[i, j]]
 a = np.array(a)
-# 取=0的位置
 b = [(i, j) for i in range(Nd) for j in range(Nv) if A[i, j] == 0]
 b = np.array(b)
-
-beta = 0.01
+beta = 0.04
 KD = pd.read_excel(r"C:\Users\wjj\VDA-KATZ\data\small_molecule_drug_sim.xlsx",header=None)
 KD = KD.to_numpy()
-# print(KD)
 KV = pd.read_excel(r"C:\Users\wjj\VDA-KATZ\data\virus_sim(2020.2.12).xlsx",header=None)
 KV = KV.to_numpy()
-# print(KV)
 note = []
 AUCs, ACCs, SENs, SPEs = (0, 0, 0, 0)
 for h in range(100):
-
     f = Kfoldcrossclassify(a, 5, fun="cv3")
     sum, ACC, SEN, SPE = (0, 0, 0, 0)
     for i in range(5):
-
         test_sample = np.array(f[i])
         negative_sample = np.array(b)
-        # 变为矩阵
         A_ = A.copy()
         A_[test_sample[:, 0], test_sample[:, 1]] = 0
         w1 = 0.9
@@ -85,32 +70,25 @@ for h in range(100):
         GD = getSimilarMatrix(A_, 2.5)
         SV = w1 * GV + (1 - w1) * KV
         SD = w2 * GD + (1 - w2) * KD
-        # print(A_)
         PK2 = beta * A_.T + math.pow(beta,2) * (SV @ A_.T + A_.T @ SD)
-        PK3 = PK2 + math.pow(beta,3) * (A_.T @ A_ @ A_.T + SV @ SV @ A_.T + SV @ A_.T @ SD + A_.T @ SD @ SD)
+        PK3 = PK2 + math.pow(beta, 3) * (A_.T @ A_ @ A_.T + SV @ SV @ A_.T + SV @ A_.T @ SD + A_.T @ SD @ SD)
         PK3 = PK3.T
         test_sample_number = test_sample.shape[0]
-        # print(test_sample_number)
         negative_sample_number = negative_sample.shape[0]
-        # print(negative_sample_number)
         label = test_sample_number*[1]+negative_sample_number*[0]
-        # print(label)
         label = np.array(label)
-        # print(label)
-        sample = np.vstack((test_sample,negative_sample))
-        score = PK3[sample[:, 0],sample[:, 1]]
-        # print(score.shape)
-        fpr,tpr,threshold = roc_curve(label,score)
-
+        sample = np.vstack((test_sample, negative_sample))
+        score = PK3[sample[:, 0], sample[:, 1]]
+        fpr, tpr, threshold = roc_curve(label,score)
         sumACC = 0
         sumSEN = 0
         sumSPE = 0
         for j in range(threshold.size):
-            TP,TN,FP,FN=(0,0,0,0)
-            yuzhi = threshold[j]
+            TP, TN, FP, FN = (0, 0, 0, 0)
+            threshold_value = threshold[j]
             for k in range(score.size):
-                yuce = score[k]
-                if yuce > yuzhi:
+                predicted_value = score[k]
+                if predicted_value >= threshold_value:
                     if label[k]:
                         TP += 1
                     else:
@@ -123,28 +101,16 @@ for h in range(100):
             sumACC += (TP+TN)/(TP+TN+FP+FN)
             sumSEN += TP/(TP+FN)
             sumSPE += TN/(TN+FP)
-
         ACC += sumACC/(threshold.size)
         SEN += sumSEN/(threshold.size)
         SPE += sumSPE/(threshold.size)
-
-        # plt.plot(fpr,tpr)
-        # plt.show()
-        auc_pre = auc(fpr,tpr)
+        auc_pre = auc(fpr, tpr)
         sum += auc_pre
         note.append((auc_pre, fpr, tpr))
-        # print("auc_pre的值是：",auc_pre)
-        # print("ACC的值是：",ACC)
-        # print("SEN的值是：",SEN)
-        # print("SPE的值是：",SPE)
     AUC_mean = sum/5
     ACC_mean = ACC/5
     SEN_mean = SEN/5
     SPE_mean = SPE/5
-    # print("AUC_mean的值是：",AUC_mean)
-    # print("ACC_mean的值是：",ACC_mean)
-    # print("SEN_mean的值是：",SEN_mean)
-    # print("SPE_mean的值是：",SPE_mean)
     AUCs += AUC_mean
     ACCs += ACC_mean
     SENs += SEN_mean
@@ -156,30 +122,26 @@ for x in range(len(note)):
 nn = mm/len(note)
 t_auc = np.inf
 dd = None
-
 for y in range(len(note)):
     kk = abs(note[y][0]-nn)
     if kk < t_auc:
         t_auc = kk
         dd = (note[y][1],note[y][2])
-fpr,tpr = dd
-with open("fprk3.txt","w") as fp:
+fpr, tpr = dd
+with open("fprk3.txt", "w") as fp:
     for i in fpr:
         fp.write(str(i)+' ')
-with open("tprk3.txt",'w') as fp:
+with open("tprk3.txt", 'w') as fp:
     for i in tpr:
         fp.write(str(i)+' ')
-# plt.plot(fpr,tpr)
-# plt.show()
 AUCs_mean = AUCs/100
 ACCs_mean = ACCs/100
 SENs_mean = SENs/100
 SPEs_mean = SPEs/100
-print("AUCs_mean的值是：", AUCs_mean)
-print("ACCs_mean的值是：", ACCs_mean)
-print("SENs_mean的值是：", SENs_mean)
-print("SPEs_mean的值是：", SPEs_mean)
-
+print("the value of AUCs_mean：", AUCs_mean)
+print("the value of ACCs_mean：", ACCs_mean)
+print("the value of SENs_mean：", SENs_mean)
+print("the value of SPEs_mean：", SPEs_mean)
 
 
 
